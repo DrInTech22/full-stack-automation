@@ -18,12 +18,7 @@ resource "null_resource" "run_ansible" {
     aws_route53_record.www_traefik_record,
     local_file.ansible_inventory
   ]
-
   provisioner "local-exec" {
-    command = <<EOT
-      echo "DNS records created and inventory file generated. Running Ansible playbook..."
-      ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i ../ansible/inventory.ini ../ansible/playbook.yml \
-      --extra-vars "frontend_domain=${var.frontend_domain} db_domain=${var.db_domain} traefik_domain=${var.traefik_domain} cert_email=${var.cert_email}"
-    EOT
+    command = "ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i ../ansible/inventory.ini ../ansible/playbook.yml --extra-vars 'frontend_domain=${var.frontend_domain} db_domain=${var.db_domain} traefik_domain=${var.traefik_domain} cert_email=${var.cert_email}'"
   }
 }

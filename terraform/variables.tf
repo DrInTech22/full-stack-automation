@@ -72,3 +72,8 @@ variable "cert_email" {
   description = "Email for the let's encrypt certificate"
   type        = string
 }
+
+variable "domain_name" {
+  description = "the hosted zone domain name"
+  type        = string
+}
