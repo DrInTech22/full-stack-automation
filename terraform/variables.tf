@@ -52,3 +52,23 @@ variable "ec2_name" {
   description = "Name of the EC2 instance"
   default     = "MainEC2Instance"
 }
+
+variable "frontend_domain" {
+  description = "Domain name for the frontend"
+  type        = string
+}
+
+variable "db_domain" {
+  description = "Domain name for the database admin (Adminer)"
+  type        = string
+}
+
+variable "traefik_domain" {
+  description = "Domain name for traefik Proxy Manager"
+  type        = string
+}
+
+variable "cert_email" {
+  description = "Email for the let's encrypt certificate"
+  type        = string
+}

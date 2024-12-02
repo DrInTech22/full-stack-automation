@@ -1,0 +1,37 @@
+---
+- name: Copy the main Docker Compose file
+  template:
+    src: compose.yml.j2
+    dest: /home/ubuntu/compose.yml
+    force: yes
+
+- name: Copy the monitoring Docker Compose file
+  template:
+    src: compose.monitoring.yml.j2
+    dest: /home/ubuntu/compose.monitoring.yml
+    force: yes
+
+- name: Copy frontend environment file
+  template:
+    src: ../frontend/.env
+    dest: /home/ubuntu/frontend/.env
+
+- name: Copy backend environment file
+  copy:
+    src: ../backend/.env
+    dest: /home/ubuntu/backend/.env
+
+- name: Copy monitoring configurations
+  copy:
+    src: ../monitoring/
+    dest: /home/ubuntu/monitoring/
+    force: yes
+
+- name: Copy postgres password file
+  copy:
+    src: ../POSTGRES_PASSWORD.txt
+    dest: /home/ubuntu/POSTGRES_PASSWORD.txt
+    mode: '0600'
+    owner: ubuntu
+    group: ubuntu
+    force: yes

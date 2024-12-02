@@ -1,0 +1,22 @@
+---
+- name: Install the Loki Docker driver plugin
+  shell: |
+    if ! docker plugin ls | grep -q "loki"; then
+      docker plugin install grafana/loki-docker-driver:2.9.1 --alias loki --grant-all-permissions
+    fi
+
+- name: Create /etc/docker/daemon.json with Loki configuration
+  copy:
+    dest: /etc/docker/daemon.json
+    content: |
+      {
+        "log-driver": "loki",
+        "log-opts": {
+          "loki-url": "http://localhost:3100/loki/api/v1/push",
+          "loki-batch-size": "400"
+        }
+      }
+    force: yes
+
+- name: Restart Docker service
+  shell: systemctl restart docker

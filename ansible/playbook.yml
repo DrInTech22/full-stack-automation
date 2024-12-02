@@ -1,25 +1,145 @@
 ---
-- name: Configure web server
-  hosts: web_servers
+- name: Setup Docker and Run Compose
+  hosts: all
   become: true
-  tasks:
-    - name: Update and upgrade packages
-      apt:
-        update_cache: yes
-        upgrade: dist
+  roles:
+    - docker_setup
+    - file_structure
+    - copy_files
+    - loki_driver
+    - docker_compose
 
-    - name: Install Apache
-      apt:
-        name: apache2
-        state: present
 
-    - name: Start and enable Apache
-      service:
-        name: apache2
-        state: started
-        enabled: true
 
-    - name: Deploy index.html
-      copy:
-        dest: /var/www/html/index.html
-        content: "<h1>Welcome to Apache on Ubuntu</h1>"
+# ---
+# - name: Setup Docker and Run Compose
+#   hosts: all
+#   become: true
+#   tasks:
+#     - name: Install prerequisites for Docker
+#       apt:
+#         name:
+#           - apt-transport-https
+#           - ca-certificates
+#           - curl
+#           - software-properties-common
+#         state: present
+
+#     - name: Add Docker GPG key
+#       shell: |
+#         curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+#       args:
+#         creates: /usr/share/keyrings/docker-archive-keyring.gpg
+
+#     - name: Add Docker repository
+#       shell: |
+#         echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list
+
+#     - name: Install Docker and related plugins
+#       apt:
+#         name:
+#           - docker-ce
+#           - docker-ce-cli
+#           - containerd.io
+#           - docker-buildx-plugin
+#           - docker-compose-plugin
+#         state: present
+#         update_cache: yes
+
+#     - name: Ensure Docker service is running
+#       service:
+#         name: docker
+#         state: started
+#         enabled: true
+  
+#     - name: Create required directories
+#       file:
+#         path: "{{ item }}"
+#         state: directory
+#         mode: '0755'
+#       loop:
+#         - /home/ubuntu/monitoring
+#         - /home/ubuntu/frontend
+#         - /home/ubuntu/backend
+#         - /home/ubuntu/traefik
+
+#     - name: Copy the main Docker Compose file
+#       template:
+#         src: compose.yml.j2
+#         dest: /home/ubuntu/compose.yml
+#         force: yes
+
+#     - name: Copy the monitoring Docker Compose file
+#       template:
+#         src: compose.monitoring.yml.j2
+#         dest: /home/ubuntu/compose.monitoring.yml
+#         force: yes
+
+#     - name: Copy frontend environment file
+#       template:
+#         src: ../frontend/.env
+#         dest: /home/ubuntu/frontend/.env
+
+#     - name: Copy backend environment file
+#       copy:
+#         src: ../backend/.env
+#         dest: /home/ubuntu/backend/.env
+
+#     - name: Copy monitoring configurations
+#       copy:
+#         src: ../monitoring/
+#         dest: /home/ubuntu/monitoring/
+#         force: yes
+
+#     - name: Copy postgres password file
+#       copy:
+#         src: ../POSTGRES_PASSWORD.txt
+#         dest: /home/ubuntu/POSTGRES_PASSWORD.txt
+#         mode: '0600'  # Restrict access to owner only
+#         owner: ubuntu
+#         group: ubuntu
+#         force: yes
+
+#     - name: Create Traefik configuration directory
+#       file:
+#         path: /home/ubuntu/traefik
+#         state: directory
+#         owner: ubuntu
+#         group: ubuntu
+#         mode: '0755'
+
+#     - name: Ensure acme.json file exists
+#       file:
+#         path: /home/ubuntu/traefik/acme.json
+#         state: touch
+#         owner: ubuntu
+#         group: ubuntu
+#         mode: '0600'
+
+#     - name: Install the Loki Docker driver plugin
+#       shell: |
+#         if ! docker plugin ls | grep -q "loki"; then
+#           docker plugin install grafana/loki-docker-driver:2.9.1 --alias loki --grant-all-permissions
+#         fi
+
+
+#     - name: Create /etc/docker/daemon.json with Loki configuration
+#       copy:
+#         dest: /etc/docker/daemon.json
+#         content: |
+#           {
+#             "log-driver": "loki",
+#             "log-opts": {
+#               "loki-url": "http://localhost:3100/loki/api/v1/push",
+#               "loki-batch-size": "400"
+#             }
+#           }
+#         force: yes
+
+#     - name: Restart Docker service
+#       shell: systemctl restart docker
+
+#     - name: Run main Docker Compose
+#       shell: docker compose up -d
+#       args:
+#         chdir: /home/ubuntu

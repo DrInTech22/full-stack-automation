@@ -1,0 +1,5 @@
+---
+- name: Run main Docker Compose
+  shell: docker compose up -d
+  args:
+    chdir: /home/ubuntu

@@ -1,2 +1,5 @@
 .terraform*
 terraform.tfstate*
+# terraform.tfvars
+# POSTGRES_PASSWORD.txt
+# .env
