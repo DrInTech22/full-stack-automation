@@ -1,37 +1,71 @@
-# Project Documentation
+# Full Stack Automation Project Documentation
 
 ## Table of content
 
-- **Overview**: 
-- **Objectives**: DevOps  
-- **Duration**: 1 week  
-- **Tools Used**: Terraform, Ansible, Docker, Traefik or Nginx, Prometheus, Grafana, PostgreSQL, FastAPI, React
-
+- [Overview](#overview)
+- [Objectives](#objectives)
+- [Project Architecture](#project-architecture)
+- [Deployed Services](#deployed-services)
+- [Technologies](#technologies)
+- [Configurations](#configurations)
+- [Project Setup](#project-setup)
 ---
 
 ## Overview
 
-This project aims to automate the deployment of a multi-tier application stack using **Terraform** for cloud infrastructure provisioning and **Ansible** for configuration management. The goal is to set up a fully automated workflow that provisions the necessary infrastructure, deploys the application and monitoring stacks, and configures routing between services using Traefik.
+This project aims to automate the deployment of Full stack applications using **Terraform** for cloud infrastructure provisioning and **Ansible** for configuration management. The goal is to set up a fully automated workflow that provisions the necessary infrastructure, deploys the application and monitoring stacks, set up visualizations and grafana dashboards, and configures routing between services using Traefik.
 
 ---
 
 ## Objectives
 
-- **Provision Infrastructure**: Use Terraform to provision cloud resources (e.g., VM instance, networking).
-- **Automate Application Deployment**: Utilize Ansible to configure the environment and deploy Dockerized services.
-- **Set Up Monitoring**: Deploy Prometheus and Grafana to monitor application health and metrics.
-- **Automate Routing**: Configure routing between services with Traefik or Nginx for seamless service communication.
+- **Provision Infrastructure**: Use Terraform to provision Infrastructure (e.g., VM instance, networking).
+- **Automate Application Deployment**: Utilize Ansible to configure the environment and deploy containerized services.
+- **Set Up Monitoring**: Deploy Prometheus and Grafana to monitor application health and metrics with dynamic dashboards.
+- **Automate Routing**: Configure routing between services with Traefik for seamless service communication.
 
 ---
 
-## Architecture
+## Project Architecture
+<img src=".asset/architect.png">
 
-### High-Level Architecture Diagram
+## Project Structure
+```
+full-stack-automation/
+├── ansible/
+│   ├── roles/
+│   ├── compose.monitoring.yml.j2
+│   ├── compose.yml.j2
+│   └── playbook.yml
+├── backend/
+│   ├── .env (should exist only on server or local machine)
+│   └── .env.sample
+├── frontend/
+│   ├── .env (should exist only on server or local machine)
+│   └── .env.sample
+├── monitoring/
+│   ├── dashboards/
+│   ├── dashboard-providers.yml
+│   ├── loki-config.yml
+│   ├── loki-datasource.yml
+│   ├── prometheus-datasource.yml
+│   ├── prometheus.yml
+│   └── promtail-config.yml
+├── terraform/
+│   ├── ansible.tf
+│   ├── backend.tf
+│   ├── ec2.tf
+│   ├── main.tf
+│   ├── output.tf
+│   ├── terraform.tfvars (should exist only on server or local machine)
+│   ├── variables.tf
+│   └── vpc.tf
+├── .gitignore
+└── POSTGRES_PASSWORD.txt (should exist only on server or local machine)
+```
 
-(Insert your architecture diagram here. The diagram should visualize how the application stack and monitoring stack interact and how the services communicate with each other.)
-
-### Components
-
+### Deployed Services
+---
 - **Application Stack**:  
   - **Frontend**: React Application (Dockerized)
   - **Backend**: FastAPI Service (Dockerized)
@@ -61,31 +95,19 @@ This project aims to automate the deployment of a multi-tier application stack u
 
 ---
 
-## Configuration
+## Configurations
 
-### Step 1: Prebuild Docker Images
-- clone the application repo
-- Built Docker images for the frontend (React) and backend (FastAPI) applications.
-  -  `docker build -t maestrops/frontend:latest .`
-  -  `docker build -t maestrops/backend:latest .`
-- Login to docker on your terminal
-  - `docker login -u maestrops`
-- Pushed the images to Docker Hub under the following names:
-  - `docker push maestrops/frontend:latest`
-  - `docker push maestrops/backend:latest`
+### Provisioning Infrastructure with Terraform
+---
+Terraform automates the provisioning of the infrastructure. It sets up VPC, ec2 server and triggers the ansible playbook.
 
-
-### Step 2: Provision Cloud Infrastructure with Terraform
-
-Terraform provisions the cloud infrastructure by configuring VPC and firewalls, setting up an ec2 server and triggers the ansible playbook.
-
-#### Terraform Configuration:
+#### Config Files:
 - **main.tf**: Configures the region for aws provider.
     ```hcl
     provider "aws" {
     region = var.aws_region
     }
-    ```**
+    ```
 - **backend.tf**: This Terraform configuration sets up an S3 backend for state storage and specifies the required Terraform and AWS provider versions.
     ```hcl
     terraform {
@@ -349,8 +371,20 @@ Terraform provisions the cloud infrastructure by configuring VPC and firewalls, 
     }
     ```
 - **terraform.tfvars**: defines the values for the variables used in the Terraform configurations.
+  ```
+  aws_region     = "us-east-1"
+  ami_id         = "ami-005fc0f236362e99f" # Replace with a valid AMI ID
+  instance_type  = "t3.medium"
+  key_pair_name  = "hello"
+  private_key_path = "../../hello.pem" # relative path to terraform folder
 
-### Step 3: Configuration Management with Ansible
+  frontend_domain = "cv1.drintech.online"
+  db_domain       = "db.cv1.drintech.online"
+  traefik_domain  = "traefik.cv1.drintech.online"
+  cert_email      = "admin@example.com" # replace with a valid email
+  ```
+---
+### Configuration Management with Ansible
 Ansible installs the necessary software on the server, copy the necessary files and automatically the deploy the application and monitoring stack.
 The tasks are logically group into roles to promote modularity and maintainability. Below is the structure of the ansible folder.
 
@@ -761,7 +795,7 @@ secrets:
    postgres_password:
      file: ./POSTGRES_PASSWORD.txt
 ```
-### Step 4: Dynamic Grafana Dashboard
+### Dynamic Grafana Dashboard
 This setup also automatically configures data sources on Grafana and loads the dashboard. The configurations are stored in the `monitoring` folder.
 - **prometheus-datasource.yml**: Configures the Prometheus data source on Grafana.
   ```yaml
@@ -812,9 +846,65 @@ This setup also automatically configures data sources on Grafana and loads the d
       - ./monitoring/dashboard-providers.yml:/etc/grafana/provisioning/dashboards/dashboard-providers.yml
       - ./monitoring/dashboards:/var/lib/grafana/dashboards # dashboard json files
   ```
+---
 ### sensitive Files and environment variables
+- **frontend/.env**: Includes env for the frontend. This env is templated to receive the variable value defined in terraform.tfvars
+- **backend/.env**: Includes env for the backend. 
+- **POSTGRES_PASSWORD.txt**: includes the password for the database. This file is mounted as secret and safely injected into the postgresql container.
+**Disclaimer**: Please note this envs and sensitive files should only exits on your server for security concerns. It was only pushed for demo and transparent configurations. Ensure you add these files to your `.gitignore` file.
 
+## Project Setup
 
+### Prerequisites
+- Ensure you have terraform and ansible installed on your machine.
+- Set up AWS programmatic access.
+- create S3 bucket for remote terraform state file management.
+- dynamodb table for state locking.
+---
+### Step 1: Build Docker Images
+- clone the application repo
+  ```
+  git clone https://github.com/DrInTech22/full-stack-monitoring.git
+  cd full-stack-monitoring
+  ```
+- Build the Docker images for the frontend (React) and backend (FastAPI) applications.
+  -  `docker build -t maestrops/frontend:latest .`
+  -  `docker build -t maestrops/backend:latest .`
+- Login to docker on your terminal
+  - `docker login -u maestrops`
+- Pushed the images to Docker Hub:
+  - `docker push maestrops/frontend:latest`
+  - `docker push maestrops/backend:latest`
+- remove the cloned repo
+---
+### Step 2: Set up configuration files
+- clone this repo
+  ```
+  git clone https://github.com/DrInTech22/full-stack-automation.git
+  cd full-stack-automation
+  ```
+- Edit the terraform.tfvars to your desired configurations
+---
+### Step 3: Apply Terraform config.
+- run the command below
+  ```
+  terraform plan
+  terraform apply --auto-approve
+  ```
+---
+### Step 4: DNS Configuration
+- During this automation process, you'll be prompted to create A records, pointing your newly created server IP to your domains.
+  - yourdomain.com
+  - db.yourdomain.com
+  - traefik.yourdomain.com
+  - www.yourdomain.com
+  - www.db.yourdomain.com
+  - www.traefik.yourdomain.com
+---
+### Step 5: Access your applications and monitoring dashboards
+- Access all your applications at their respective domains.
+- Login to your grafana to access your dashboards.
+  
 
 
 
