@@ -55,6 +55,7 @@ full-stack-automation/
 │   ├── ansible.tf
 │   ├── backend.tf
 │   ├── ec2.tf
+│   ├── dns.tf
 │   ├── main.tf
 │   ├── output.tf
 │   ├── terraform.tfvars (should exist only on server or local machine)
@@ -216,75 +217,91 @@ Terraform automates the provisioning of the infrastructure. It sets up VPC, ec2 
     }
     }
     ```
-- **ansible.tf**: automatically generates a dynamic Ansible inventory file, triggrs the Ansible playbook after verifying DNS resolution for specified domains using the custom script.
+- **ansible.tf**: automatically generates a dynamic Ansible inventory file, triggrs the Ansible playbook after the DNS records have been created by terraform.
     ```hcl
+    # Create Ansible inventory file
     resource "local_file" "ansible_inventory" {
       filename = "../ansible/inventory.ini"
       content  = <<EOF
-        [web_servers]
-        ${aws_instance.ec2.public_ip} ansible_user=ubuntu ansible_ssh_private_key_file=${var.private_key_path}
-      EOF
+    [web_servers]
+    ${aws_instance.ec2.public_ip} ansible_user=ubuntu ansible_ssh_private_key_file=${var.private_key_path}
+    EOF
     }
 
+    # Run the Ansible playbook
     resource "null_resource" "run_ansible" {
-      depends_on = [null_resource.verify_dns_resolution, local_file.ansible_inventory]
-
+      depends_on = [
+        aws_route53_record.frontend_record,
+        aws_route53_record.www_frontend_record,
+        aws_route53_record.db_record,
+        aws_route53_record.www_db_record,
+        aws_route53_record.traefik_record,
+        aws_route53_record.www_traefik_record,
+        local_file.ansible_inventory
+      ]
       provisioner "local-exec" {
-        command = <<EOT
-          echo "Domains propagated. Running Ansible playbook..."
-          sleep 10
-          ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i ../ansible/inventory.ini ../ansible/playbook.yml \
-          --extra-vars "frontend_domain=${var.frontend_domain} db_domain=${var.db_domain} traefik_domain=${var.traefik_domain} cert_email=${var.cert_email}"
-        EOT
+        command = "ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i ../ansible/inventory.ini ../ansible/playbook.yml --extra-vars 'frontend_domain=${var.frontend_domain} db_domain=${var.db_domain} traefik_domain=${var.traefik_domain} cert_email=${var.cert_email}'"
       }
     }
+  ```
 
-    resource "null_resource" "verify_dns_resolution" {
-      provisioner "local-exec" {
-        command = <<-EOT
-          #!/bin/bash
-          domains="${var.frontend_domain} ${var.db_domain} ${var.traefik_domain} www.${var.frontend_domain} www.${var.db_domain} www.${var.traefik_domain}"
-          instance_ip="${aws_instance.ec2.public_ip}"
-          echo "-----------------------------------------------"  
-          echo "$instance_ip should point to domains: $domains"
-          echo "------------------------------------------------"
-          # Wait for 90 seconds (1.5 minutes) to give the user time to set the domains
-          echo "Waiting for 120 seconds for domains to be configured..."
-          sleep 120
+- **dns.tf** : sets up the dns records for the domains.
+  ```hcl
+  # Fetch the existing hosted zone
+  data "aws_route53_zone" "domain_zone" {
+    name         = var.domain_name
+    private_zone = false
+  }
 
-          # Start looping through the domains to check resolution
-          while true; do
-            all_resolved=true
+  # Create DNS records for main and www subdomains
+  resource "aws_route53_record" "frontend_record" {
+    zone_id = data.aws_route53_zone.domain_zone.zone_id
+    name    = var.frontend_domain
+    type    = "A"
+    ttl     = 300
+    records = [aws_instance.ec2.public_ip]
+  }
 
-            for domain in $domains; do
-              # Perform nslookup using two different DNS servers
-              resolved_ip_1=$(nslookup "$domain" 208.67.222.220 | grep 'Address' | tail -n 1 | awk '{print $2}')
-              resolved_ip_2=$(nslookup "$domain" 8.8.8.8 | grep 'Address' | tail -n 1 | awk '{print $2}')
-                  
-              # Compare the resolved IPs to the expected instance IP
-              if [ "$resolved_ip_1" = "$instance_ip" ] || [ "$resolved_ip_2" = "$instance_ip" ]; then
-                echo "Domain $domain resolves correctly to $instance_ip"
-              else
-                echo "Domain $domain resolves to $resolved_ip_1 but expected $instance_ip"
-                all_resolved=false
-              fi
-            done
+  resource "aws_route53_record" "www_frontend_record" {
+    zone_id = data.aws_route53_zone.domain_zone.zone_id
+    name    = "www.${var.frontend_domain}"
+    type    = "A"
+    ttl     = 300
+    records = [aws_instance.ec2.public_ip]
+  }
 
-            # Check if all domains resolved correctly
-            if [ "$all_resolved" = true ]; then
-              echo "All domains have propagated correctly to IP $instance_ip"
-              break
-            else
-              echo "Please configure the domains to point to $instance_ip. Retrying in 60 seconds..."
-              sleep 60
-            fi
-          done
-        EOT
-      }
+  resource "aws_route53_record" "db_record" {
+    zone_id = data.aws_route53_zone.domain_zone.zone_id
+    name    = var.db_domain
+    type    = "A"
+    ttl     = 300
+    records = [aws_instance.ec2.public_ip]
+  }
 
-      depends_on = [aws_instance.ec2]
-    }
-    ```
+  resource "aws_route53_record" "www_db_record" {
+    zone_id = data.aws_route53_zone.domain_zone.zone_id
+    name    = "www.${var.db_domain}"
+    type    = "A"
+    ttl     = 300
+    records = [aws_instance.ec2.public_ip]
+  }
+
+  resource "aws_route53_record" "traefik_record" {
+    zone_id = data.aws_route53_zone.domain_zone.zone_id
+    name    = var.traefik_domain
+    type    = "A"
+    ttl     = 300
+    records = [aws_instance.ec2.public_ip]
+  }
+
+  resource "aws_route53_record" "www_traefik_record" {
+    zone_id = data.aws_route53_zone.domain_zone.zone_id
+    name    = "www.${var.traefik_domain}"
+    type    = "A"
+    ttl     = 300
+    records = [aws_instance.ec2.public_ip]
+  }
+  ```
 
 - **outputs.tf**: outputs the public ip of the ec2 instance to be used for DNS propagation and access to the server.
     ```hcl
